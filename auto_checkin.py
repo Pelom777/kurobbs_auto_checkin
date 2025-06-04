@@ -151,7 +151,7 @@ def main():
     try:
         kurobbs = KurobbsClient(token)
         kurobbs.start()
-        logger.debug(kurobbs.msg)
+        logger.info(kurobbs.msg)
         if kurobbs.msg:
             send_notification(kurobbs.msg)
     except KurobbsClientException as e:
