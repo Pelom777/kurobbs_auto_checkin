@@ -133,6 +133,8 @@ class KurobbsClient:
         """Log the results and raise exceptions if any."""
         if msg := self.msg:
             logger.info(msg)
+        if self.exceptions:
+            raise KurobbsClientException("; ".join(map(str, self.exceptions)))
 
 
 def configure_logger(debug: bool = False):
@@ -145,13 +147,12 @@ def configure_logger(debug: bool = False):
 def main():
     """Main function to handle command-line arguments and start the sign-in process."""
     token = os.getenv("TOKEN")
-    debug = os.getenv("DEBUG", True)
+    debug = os.getenv("DEBUG", False)
     configure_logger(debug=debug)
 
     try:
         kurobbs = KurobbsClient(token)
         kurobbs.start()
-        logger.info(kurobbs.msg)
         if kurobbs.msg:
             send_notification(kurobbs.msg)
     except KurobbsClientException as e:
