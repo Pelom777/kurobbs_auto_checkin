@@ -17,6 +17,7 @@ def send_wecom_notification(title, message):
     wecom_api_url = os.getenv("WECOM_API_URL")
     wecom_to_user = os.getenv("WECOM_TO_USER")
     wecom_token = os.getenv("WECOM_TOKEN")
+    logger.debug(wecom_api_url and wecom_to_user and wecom_token)
     if wecom_api_url and wecom_to_user and wecom_token:
         payload = {
             "to_user": wecom_to_user,
