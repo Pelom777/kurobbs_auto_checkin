@@ -1,23 +1,44 @@
-name: Keep scheduled workflows alive
+name: Keep workflows alive (API mode)
 
 on:
   schedule:
-    # 每天 00:00 UTC 跑一次（你可以改成每周一次，只要 < 60 天就行）
-    - cron: "0 0 * * *"
-  workflow_dispatch: # 手动触发调试用，可选
+    # 每 30 天执行一次（你可以按需调整频率，只要 < 60 天就行）
+    - cron: "0 0 */30 * *"
+  workflow_dispatch:  # 可选：支持手动触发
 
-# 这里只需要让它有操作 workflow 的权限（默认用 API 模式，不改 commit 历史）
+# 需要对 actions 有写权限，才能调用 enable API
 permissions:
   actions: write
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Keep repo active
-        uses: gautamkrishnar/keepalive-workflow@v2
-        # 默认就行：使用 GitHub API 方式保持活跃，不制造假提交
-        # with:
-        #   time_elapsed: "45"  # 默认 45 天后才真正做一次“心跳”
+    steps:
+      - name: Keep target workflows enabled via GitHub API
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // 需要保活的 workflow 列表（文件名形式）
+            // 注意：这里的名字必须和 .github/workflows 下的文件名完全一致
+            const workflows = [
+              'auto_checkin.yaml',
+              'keepalive.yml',
+            ];
+
+            for (const workflowId of workflows) {
+              core.info(`Enabling workflow: ${workflowId}`);
+              await github.request(
+                'PUT /repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable',
+                {
+                  owner,
+                  repo,
+                  workflow_id: workflowId,
+                }
+              );
+              core.info(`Workflow ${workflowId} enabled.`);
+            }
