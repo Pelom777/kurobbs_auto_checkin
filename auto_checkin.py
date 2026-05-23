@@ -55,14 +55,26 @@ class KurobbsClient:
         """Make a POST request to the specified URL with the given data."""
         headers = self.get_headers()
         response = requests.post(url, headers=headers, data=data)
+        response.raise_for_status()
         res = Response.model_validate_json(response.content)
         logger.debug(res.model_dump_json(indent=2, exclude={"data"}))
         return res
+
+    def validate_response(self, response: Response, action: str) -> Response:
+        """Validate API response and raise a clear exception if the request failed."""
+        if response.success is False or (response.success is None and response.code != 0):
+            raise KurobbsClientException(f"{action}, {response.msg or '未知错误'}")
+        return response
 
     def get_user_game_list(self, game_id: int) -> List[Dict[str, Any]]:
         """Get the list of games for the user."""
         data = {"gameId": game_id}
         res = self.make_request(self.FIND_ROLE_LIST_API_URL, data)
+        self.validate_response(res, "获取游戏角色列表")
+        if not isinstance(res.data, list) or not res.data:
+            raise KurobbsClientException(
+                "未获取到游戏角色列表，可能 token 已过期或无可用角色。"
+            )
         return res.data
 
     def checkin(self) -> Response:
@@ -102,10 +114,8 @@ class KurobbsClient:
         """
         resp = action_method()
         logger.debug(resp)
-        if resp.success:
-            self.result[action_name] = success_message
-        else:
-            self.exceptions.append(KurobbsClientException(f'{failure_message}, {resp.msg}'))
+        self.validate_response(resp, failure_message)
+        self.result[action_name] = success_message
 
     def start(self):
         """Start the sign-in process."""
@@ -147,20 +157,25 @@ def configure_logger(debug: bool = False):
 def main():
     """Main function to handle command-line arguments and start the sign-in process."""
     token = os.getenv("TOKEN")
-    debug = os.getenv("DEBUG", False)
+    if not token:
+        message = "TOKEN 环境变量未设置，无法签到。"
+        logger.error(message)
+        send_notification(message)
+        sys.exit(1)
+
+    debug = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
     configure_logger(debug=debug)
 
     try:
         kurobbs = KurobbsClient(token)
         kurobbs.start()
-        if kurobbs.msg:
-            send_notification(kurobbs.msg)
     except KurobbsClientException as e:
         logger.error(str(e), exc_info=False)
         send_notification(str(e))
         sys.exit(1)
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+        send_notification(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 
